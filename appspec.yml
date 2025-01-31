@@ -5,5 +5,5 @@ Resources:
       Properties:
         Name: auth-backend
         Alias: auth-backend-aly
-        CurrentVersion: "1"
-        TargetVersion: "2"
+        CurrentVersion: "$LATEST"  # Use $LATEST to refer to the latest version
+        TargetVersion: "1"  # Specify a valid version, if it exists
