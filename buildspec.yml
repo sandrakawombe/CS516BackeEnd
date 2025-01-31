@@ -10,4 +10,4 @@ phases:
       - mvn clean package # This will create the JAR file in the 'target' directory
 artifacts:
   files:
-    - target/*.jar # Ensure that the built JAR file is available for the next stage
+    - target/auth-backend-1.0.jar # Ensure that the built JAR file is available for the next stage
