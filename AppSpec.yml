@@ -1,0 +1,5 @@
+version: 0.0
+resources:
+  - lambda:
+      name: auth-backend
+      alias: live
