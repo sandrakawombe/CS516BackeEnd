@@ -53,7 +53,9 @@ public class AuthHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
             return handleLogin(input);
         } else if ("/auth/upload-image".equals(path) && "POST".equals(method)) {
             return handleImageUpload(input);
-        }
+        } else if ("/auth/user".equals(path) && "GET".equals(method)) {
+        return handleGetUserDetails(input);
+    }
 
         return createResponse(400, "Invalid endpoint");
     }
@@ -139,6 +141,55 @@ public class AuthHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
             System.out.println("Error during login: " + e.getMessage());
             responseBody.put("responseCode", "500");
             responseBody.put("responseDesc", "Error during login: " + e.getMessage());
+            return createResponse(500, gson.toJson(responseBody));
+        }
+    }
+
+    private APIGatewayProxyResponseEvent handleGetUserDetails(APIGatewayProxyRequestEvent input) {
+        try {
+            // Verify JWT token
+            String token = input.getHeaders().get("Authorization");
+            if (token == null || !token.startsWith("Bearer ")) {
+                responseBody.put("responseCode", "401");
+                responseBody.put("responseDesc", "Missing or invalid authorization token");
+                return createResponse(401, gson.toJson(responseBody));
+            }
+
+            token = token.replace("Bearer ", "");
+            String email = JwtUtil.verifyToken(token);
+
+            // Get user from DynamoDB
+            Map<String, AttributeValue> key = new HashMap<>();
+            key.put("email", AttributeValue.builder().s(email).build());
+
+            GetItemRequest getItemRequest = GetItemRequest.builder()
+                    .tableName(USER_TABLE)
+                    .key(key)
+                    .build();
+
+            GetItemResponse response = dynamoDb.getItem(getItemRequest);
+
+            if (response.hasItem()) {
+                Map<String, String> userDetails = new HashMap<>();
+                userDetails.put("email", response.item().get("email").s());
+                userDetails.put("name", response.item().getOrDefault("name",
+                        AttributeValue.builder().s("").build()).s());
+                userDetails.put("profileImage", response.item().getOrDefault("profileImage",
+                        AttributeValue.builder().s("").build()).s());
+
+                responseBody.put("responseCode", "200");
+                responseBody.put("responseDesc", "Success");
+                responseBody.put("data", gson.toJson(userDetails));
+                return createResponse(200, gson.toJson(responseBody));
+            } else {
+                responseBody.put("responseCode", "404");
+                responseBody.put("responseDesc", "User not found");
+                return createResponse(404, gson.toJson(responseBody));
+            }
+
+        } catch (Exception e) {
+            responseBody.put("responseCode", "500");
+            responseBody.put("responseDesc", "Error fetching user details: " + e.getMessage());
             return createResponse(500, gson.toJson(responseBody));
         }
     }
