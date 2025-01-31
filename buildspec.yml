@@ -9,7 +9,6 @@ phases:
     commands:
       - echo Building the Lambda JAR...
       - mvn clean package # This will create the JAR file in the 'target' directory
-
 artifacts:
   files:
     - target/*.jar # Ensure that the built JAR file is available for the next stage
