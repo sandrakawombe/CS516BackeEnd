@@ -1,5 +1,9 @@
 version: 0.0
 Resources:
   - LambdaFunction:
-      FunctionName: "auth-backend"
-      Alias: "dev"
+      Type: AWS::Lambda::Function
+      Properties:
+        Name: auth-backend
+        Alias: dev
+        CurrentVersion: "1"
+        TargetVersion: "1"
