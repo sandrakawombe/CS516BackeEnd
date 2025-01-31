@@ -5,7 +5,6 @@ phases:
     commands:
       - echo Installing dependencies...
       - mvn clean install
-
   build:
     commands:
       - echo Building the Lambda JAR...
