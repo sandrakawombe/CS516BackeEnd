@@ -29,11 +29,11 @@ public class AuthHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
     private final String MY_AWS_REGION = System.getenv("MY_AWS_REGION");
 
     private final DynamoDbClient dynamoDb = DynamoDbClient.builder()
-            .region(Region.of(MY_AWS_REGION))  // Set DynamoDB region to us-east-1
+            .region(Region.of(MY_AWS_REGION))
             .build();
 
     private final S3Client s3Client = S3Client.builder()
-            .region(Region.of(MY_AWS_REGION))  // Set S3 region to us-east-1
+            .region(Region.of(MY_AWS_REGION))
             .build();
 
     private final String USER_TABLE = System.getenv("USER_TABLE");
@@ -54,15 +54,53 @@ public class AuthHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
         } else if ("/auth/upload-image".equals(path) && "POST".equals(method)) {
             return handleImageUpload(input);
         } else if ("/auth/user".equals(path) && "GET".equals(method)) {
-        return handleGetUserDetails(input);
-    }
+            return handleGetUserDetails(input);
+        }
 
         return createResponse(400, "Invalid endpoint");
     }
 
+    private boolean validateSignupRequest(SignupRequest request) {
+        return request != null &&
+                request.getEmail() != null && !request.getEmail().trim().isEmpty() &&
+                request.getPassword() != null && !request.getPassword().trim().isEmpty() &&
+                request.getName() != null && !request.getName().trim().isEmpty();
+    }
+
+    private boolean validateLoginRequest(LoginRequest request) {
+        return request != null &&
+                request.getEmail() != null && !request.getEmail().trim().isEmpty() &&
+                request.getPassword() != null && !request.getPassword().trim().isEmpty();
+    }
+
+    private boolean validateImageUploadRequest(String authHeader, String body) {
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return false;
+        }
+
+        try {
+            JsonObject jsonRequest = JsonParser.parseString(body).getAsJsonObject();
+            return jsonRequest.has("image") && !jsonRequest.get("image").getAsString().isEmpty();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     private APIGatewayProxyResponseEvent handleSignup(APIGatewayProxyRequestEvent input) {
         try {
+            if (input.getBody() == null) {
+                responseBody.put("responseCode", "400");
+                responseBody.put("responseDesc", "Request body is required");
+                return createResponse(400, gson.toJson(responseBody));
+            }
+
             SignupRequest request = gson.fromJson(input.getBody(), SignupRequest.class);
+
+            if (!validateSignupRequest(request)) {
+                responseBody.put("responseCode", "400");
+                responseBody.put("responseDesc", "Email, password, and name are required fields");
+                return createResponse(400, gson.toJson(responseBody));
+            }
 
             // Hash password
             String hashedPassword = BCrypt.hashpw(request.getPassword(), BCrypt.gensalt());
@@ -91,16 +129,24 @@ public class AuthHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
 
     private APIGatewayProxyResponseEvent handleLogin(APIGatewayProxyRequestEvent input) {
         try {
+            if (input.getBody() == null) {
+                responseBody.put("responseCode", "400");
+                responseBody.put("responseDesc", "Request body is required");
+                return createResponse(400, gson.toJson(responseBody));
+            }
+
             LoginRequest request = gson.fromJson(input.getBody(), LoginRequest.class);
+
+            if (!validateLoginRequest(request)) {
+                responseBody.put("responseCode", "400");
+                responseBody.put("responseDesc", "Email and password are required fields");
+                return createResponse(400, gson.toJson(responseBody));
+            }
 
             // Get user from DynamoDB
             Map<String, AttributeValue> key = new HashMap<>();
             String emailToQuery = request.getEmail().trim();
             key.put("email", AttributeValue.builder().s(emailToQuery).build());
-            System.out.println("Querying for email: '" + emailToQuery+"'");
-            System.out.println("Querying from table: " + USER_TABLE);
-            System.out.println("DynamoDB query key: " + key);
-
 
             GetItemRequest getItemRequest = GetItemRequest.builder()
                     .tableName(USER_TABLE)
@@ -108,12 +154,8 @@ public class AuthHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
                     .build();
 
             GetItemResponse response = dynamoDb.getItem(getItemRequest);
-            System.out.println("DynamoDB query response: " + response);
-            System.out.println("====Looks like pipeline deploy worked=======");
-            System.out.println("=====================");
 
             if (response.hasItem()) {
-                System.out.println("Item found in DynamoDB");
                 String storedHash = response.item().get("password").s();
                 if (BCrypt.checkpw(request.getPassword(), storedHash)) {
                     String token = JWT.create()
@@ -125,107 +167,36 @@ public class AuthHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
                     responseBody.put("token", token);
                     return createResponse(200, gson.toJson(responseBody));
                 } else {
-                    System.out.println("Password mismatch");
                     responseBody.put("responseCode", "404");
                     responseBody.put("responseDesc", "Password mismatch");
                     return createResponse(404, gson.toJson(responseBody));
                 }
             } else {
-                System.out.println("Invalid credentials");
                 responseBody.put("responseCode", "401");
                 responseBody.put("responseDesc", "Invalid credentials");
                 return createResponse(401, gson.toJson(responseBody));
             }
 
         } catch (Exception e) {
-            System.out.println("Error during login: " + e.getMessage());
             responseBody.put("responseCode", "500");
             responseBody.put("responseDesc", "Error during login: " + e.getMessage());
             return createResponse(500, gson.toJson(responseBody));
         }
     }
 
-    private APIGatewayProxyResponseEvent handleGetUserDetails(APIGatewayProxyRequestEvent input) {
-        try {
-            // Get authorization header
-            Map<String, String> headers = input.getHeaders();
-            if (headers == null || !headers.containsKey("Authorization")) {
-                responseBody.put("responseCode", "401");
-                responseBody.put("responseDesc", "Missing authorization header");
-                return createResponse(401, gson.toJson(responseBody));
-            }
-
-            String authHeader = headers.get("Authorization");
-            System.out.println("Auth header received: " + authHeader); // Debug log
-
-            // Verify the Bearer token format
-            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-                responseBody.put("responseCode", "401");
-                responseBody.put("responseDesc", "Invalid authorization format. Must be 'Bearer <token>'");
-                return createResponse(401, gson.toJson(responseBody));
-            }
-
-            // Extract and verify the token
-            String token = authHeader.substring(7); // Remove "Bearer " prefix
-            String email = JwtUtil.verifyToken(token);
-
-            // Get user from DynamoDB
-            Map<String, AttributeValue> key = new HashMap<>();
-            key.put("email", AttributeValue.builder().s(email).build());
-
-            GetItemRequest getItemRequest = GetItemRequest.builder()
-                    .tableName(USER_TABLE)
-                    .key(key)
-                    .build();
-
-            GetItemResponse response = dynamoDb.getItem(getItemRequest);
-
-            if (response.hasItem()) {
-                // Create a structured response
-                Map<String, Object> apiResponse = new HashMap<>();
-                Map<String, Object> userData = new HashMap<>();
-
-                // Populate user data
-                userData.put("email", response.item().get("email").s());
-                userData.put("name", response.item().getOrDefault("name",
-                        AttributeValue.builder().s("").build()).s());
-                userData.put("profileImage", response.item().getOrDefault("profileImage",
-                        AttributeValue.builder().s("").build()).s());
-
-                // Build the final response
-                apiResponse.put("status", "success");
-                apiResponse.put("code", 200);
-                apiResponse.put("data", userData);
-
-                return createResponse(200, gson.toJson(apiResponse));
-            } else {
-                Map<String, Object> errorResponse = new HashMap<>();
-                errorResponse.put("status", "error");
-                errorResponse.put("code", 404);
-                errorResponse.put("message", "User not found");
-
-                return createResponse(404, gson.toJson(errorResponse));
-            }
-
-        } catch (Exception e) {
-            System.out.println("Error in handleGetUserDetails: " + e.getMessage());
-            e.printStackTrace();
-
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("status", "error");
-            errorResponse.put("code", 500);
-            errorResponse.put("message", "Error fetching user details: " + e.getMessage());
-
-            return createResponse(500, gson.toJson(errorResponse));
-        }
-    }
-
-
-    // In your AuthHandler class, update the handleImageUpload method:
     private APIGatewayProxyResponseEvent handleImageUpload(APIGatewayProxyRequestEvent input) {
         try {
+            Map<String, String> headers = input.getHeaders();
+            String authHeader = headers != null ? headers.get("Authorization") : null;
+
+            if (!validateImageUploadRequest(authHeader, input.getBody())) {
+                responseBody.put("responseCode", "400");
+                responseBody.put("responseDesc", "Invalid request. Authorization header and image data are required");
+                return createResponse(400, gson.toJson(responseBody));
+            }
+
             // Verify JWT token
-            String token = input.getHeaders().get("Authorization").replace("Bearer ", "");
+            String token = authHeader.replace("Bearer ", "");
             String email = JwtUtil.verifyToken(token);
 
             // Parse the JSON body
@@ -250,9 +221,6 @@ public class AuthHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
             Map<String, AttributeValue> keys = new HashMap<>();
             keys.put("email", AttributeValue.builder().s(email).build());
 
-            Map<String, AttributeValue> updates = new HashMap<>();
-            updates.put("profileImage", AttributeValue.builder().s(key).build());
-
             UpdateItemRequest updateRequest = UpdateItemRequest.builder()
                     .tableName(USER_TABLE)
                     .key(keys)
@@ -275,6 +243,73 @@ public class AuthHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
         }
     }
 
+    private APIGatewayProxyResponseEvent handleGetUserDetails(APIGatewayProxyRequestEvent input) {
+        try {
+            Map<String, String> headers = input.getHeaders();
+            if (headers == null || !headers.containsKey("Authorization")) {
+                Map<String, Object> errorResponse = new HashMap<>();
+                errorResponse.put("status", "error");
+                errorResponse.put("code", 401);
+                errorResponse.put("message", "Authorization header is required");
+                return createResponse(401, gson.toJson(errorResponse));
+            }
+
+            String authHeader = headers.get("Authorization");
+            if (!authHeader.startsWith("Bearer ")) {
+                Map<String, Object> errorResponse = new HashMap<>();
+                errorResponse.put("status", "error");
+                errorResponse.put("code", 401);
+                errorResponse.put("message", "Invalid authorization format. Must be 'Bearer <token>'");
+                return createResponse(401, gson.toJson(errorResponse));
+            }
+
+            String token = authHeader.substring(7);
+            String email = JwtUtil.verifyToken(token);
+
+            Map<String, AttributeValue> key = new HashMap<>();
+            key.put("email", AttributeValue.builder().s(email).build());
+
+            GetItemRequest getItemRequest = GetItemRequest.builder()
+                    .tableName(USER_TABLE)
+                    .key(key)
+                    .build();
+
+            GetItemResponse response = dynamoDb.getItem(getItemRequest);
+
+            if (response.hasItem()) {
+                Map<String, Object> apiResponse = new HashMap<>();
+                Map<String, Object> userData = new HashMap<>();
+
+                userData.put("email", response.item().get("email").s());
+                userData.put("name", response.item().getOrDefault("name",
+                        AttributeValue.builder().s("").build()).s());
+                userData.put("profileImage", response.item().getOrDefault("profileImage",
+                        AttributeValue.builder().s("").build()).s());
+
+                apiResponse.put("status", "success");
+                apiResponse.put("code", 200);
+                apiResponse.put("data", userData);
+
+                return createResponse(200, gson.toJson(apiResponse));
+            } else {
+                Map<String, Object> errorResponse = new HashMap<>();
+                errorResponse.put("status", "error");
+                errorResponse.put("code", 404);
+                errorResponse.put("message", "User not found");
+
+                return createResponse(404, gson.toJson(errorResponse));
+            }
+
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", "error");
+            errorResponse.put("code", 500);
+            errorResponse.put("message", "Error fetching user details: " + e.getMessage());
+
+            return createResponse(500, gson.toJson(errorResponse));
+        }
+    }
+
     private APIGatewayProxyResponseEvent createResponse(int statusCode, String body) {
         APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent();
         response.setStatusCode(statusCode);
@@ -283,7 +318,6 @@ public class AuthHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
         Map<String, String> headers = new HashMap<>();
         headers.put("Content-Type", "application/json");
         headers.put("Access-Control-Allow-Origin", "*");
-        // Add CORS headers
         headers.put("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
         headers.put("Access-Control-Allow-Headers", "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token");
         response.setHeaders(headers);
