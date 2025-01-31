@@ -292,8 +292,8 @@ public class AuthHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
     private APIGatewayProxyResponseEvent createErrorResponse(int statusCode, String message) {
         Map<String, Object> errorResponse = new HashMap<>();
         errorResponse.put("status", "error");
-        errorResponse.put("code", statusCode);
-        errorResponse.put("message", message);
+        errorResponse.put("responseCode", statusCode);
+        errorResponse.put("responseDesc", message);
         return createResponse(statusCode, gson.toJson(errorResponse));
     }
 
