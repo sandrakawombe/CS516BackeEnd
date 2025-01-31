@@ -4,6 +4,4 @@ Resources:
       Type: AWS::Lambda::Function
       Properties:
         Name: auth-backend
-        Alias: dev
-        CurrentVersion: "1"
-        TargetVersion: "1"
+        Alias: auth-backend-aly
