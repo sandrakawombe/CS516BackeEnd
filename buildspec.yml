@@ -4,15 +4,22 @@ phases:
   install:
     commands:
       - echo Installing dependencies...
-      - mvn clean install  # Install the dependencies for the project
+      - mvn clean install
 
   build:
     commands:
       - echo Building the Lambda JAR...
-      - mvn clean package  # Build the JAR file in the target directory
+      - mvn clean package
+
+  post_build:
+    commands:
+      - echo Updating Lambda function code...
+      - aws lambda update-function-code
+        --function-name auth-backend
+        --zip-file fileb://target/auth-backend-1.0.jar
 
 artifacts:
   files:
-    - target/auth-backend-1.0.jar  # This is the JAR file to deploy
-    - appspec.yml                  # Include the appspec.yml file for deployment
-  discard-paths: yes                 # Ensures the paths in the artifact are clean (i.e., no extra directories)
+    - target/auth-backend-1.0.jar
+    - appspec.yml
+  discard-paths: yes
