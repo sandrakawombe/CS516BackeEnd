@@ -7,6 +7,3 @@ Resources:
         Alias: auth-backend-aly
         CurrentVersion: 1
         TargetVersion: 1
-Hooks:
-  - BeforeAllowTraffic: "LambdaFunctionToUpdate"
-  - AfterAllowTraffic: "LambdaFunctionToValidate"
