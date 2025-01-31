@@ -6,4 +6,4 @@ Resources:
         Name: auth-backend
         Alias: auth-backend-aly
         CurrentVersion: 1 #version updated
-        TargetVersion: "$LATEST"
+        TargetVersion: 2
