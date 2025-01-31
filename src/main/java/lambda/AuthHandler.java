@@ -6,6 +6,8 @@ import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import model.LoginRequest;
 import model.SignupRequest;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
@@ -16,6 +18,7 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import com.google.gson.Gson;
 import org.mindrot.jbcrypt.BCrypt;
 import software.amazon.awssdk.regions.Region;
+import util.JwtUtil;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -104,6 +107,7 @@ public class AuthHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
 
             GetItemResponse response = dynamoDb.getItem(getItemRequest);
             System.out.println("DynamoDB query response: " + response);
+            System.out.println("====Looks like pipeline deploy worked=======");
 
             if (response.hasItem()) {
                 System.out.println("Item found in DynamoDB");
@@ -138,58 +142,57 @@ public class AuthHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
         }
     }
 
+    // In your AuthHandler class, update the handleImageUpload method:
     private APIGatewayProxyResponseEvent handleImageUpload(APIGatewayProxyRequestEvent input) {
         try {
             // Verify JWT token
             String token = input.getHeaders().get("Authorization").replace("Bearer ", "");
-            String email = JWT.require(Algorithm.HMAC256(JWT_SECRET))
-                    .build()
-                    .verify(token)
-                    .getSubject();
+            String email = JwtUtil.verifyToken(token);
 
-            // Process image upload
-            String image = input.getBody(); // Base64 encoded image
-            // Remove the data URI scheme (e.g., data:image/jpeg;base64,)
-           // String imageData = image.replaceAll("^data:image\\/[^;]+;base64,", "");
+            // Parse the JSON body
+            JsonObject jsonRequest = JsonParser.parseString(input.getBody()).getAsJsonObject();
+            String base64Image = jsonRequest.get("image").getAsString();
 
-            byte[] decodedImage = Base64.getDecoder().decode(image);
+            // Decode base64 image
+            byte[] decodedImage = Base64.getDecoder().decode(base64Image);
+
+            // Generate unique file name
             String key = "profiles/" + UUID.randomUUID().toString() + ".jpg";
 
             // Upload to S3
-            s3Client.putObject(PutObjectRequest.builder()
-                            .bucket(S3_BUCKET)
-                            .key(key)
-                            .build(),
-                    RequestBody.fromBytes(decodedImage));
+            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                    .bucket(S3_BUCKET)
+                    .key(key)
+                    .build();
+
+            s3Client.putObject(putObjectRequest, RequestBody.fromBytes(decodedImage));
 
             // Update user profile in DynamoDB
-            Map<String, AttributeValue> keyMap = new HashMap<>();
-            keyMap.put("email", AttributeValue.builder().s(email).build());
+            Map<String, AttributeValue> keys = new HashMap<>();
+            keys.put("email", AttributeValue.builder().s(email).build());
 
-            // Correctly use AttributeValueUpdate for DynamoDB
-            Map<String, AttributeValueUpdate> updates = new HashMap<>();
+            Map<String, AttributeValue> updates = new HashMap<>();
+            updates.put("profileImage", AttributeValue.builder().s(key).build());
 
-            // Create AttributeValueUpdate for 'profileImage'
-            AttributeValueUpdate update = AttributeValueUpdate.builder()
-                    .value(AttributeValue.builder().s(key).build())  // Setting the new profileImage value
-                    .action(AttributeAction.PUT)  // Using the PUT action to overwrite the value
-                    .build();
-
-            updates.put("profileImage", update);
-
-            // Create the UpdateItemRequest
             UpdateItemRequest updateRequest = UpdateItemRequest.builder()
                     .tableName(USER_TABLE)
-                    .key(keyMap)
-                    .attributeUpdates(updates)  // Use the Map<String, AttributeValueUpdate> here
+                    .key(keys)
+                    .attributeUpdates(Map.of("profileImage",
+                            AttributeValueUpdate.builder()
+                                    .value(AttributeValue.builder().s(key).build())
+                                    .action(AttributeAction.PUT)
+                                    .build()))
                     .build();
 
-            // Execute the update
             dynamoDb.updateItem(updateRequest);
 
-            return createResponse(200, "Image uploaded successfully");
+            responseBody.put("responseCode", "200");
+            responseBody.put("responseDesc", "Image uploaded successfully");
+            return createResponse(200, gson.toJson(responseBody));
         } catch (Exception e) {
-            return createResponse(500, "Error uploading image: " + e.getMessage());
+            responseBody.put("responseCode", "500");
+            responseBody.put("responseDesc", "Error uploading image: " + e.getMessage());
+            return createResponse(500, gson.toJson(responseBody));
         }
     }
 
