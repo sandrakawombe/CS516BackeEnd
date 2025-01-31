@@ -1,7 +1,5 @@
 version: 0.0
 Resources:
   - LambdaFunction:
-      Name: "auth-backend"
-      Alias: "dev"
       FunctionName: "auth-backend"
-
+      Alias: "dev"
