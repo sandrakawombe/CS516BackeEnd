@@ -108,6 +108,7 @@ public class AuthHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
             GetItemResponse response = dynamoDb.getItem(getItemRequest);
             System.out.println("DynamoDB query response: " + response);
             System.out.println("====Looks like pipeline deploy worked=======");
+            System.out.println("=====================");
 
             if (response.hasItem()) {
                 System.out.println("Item found in DynamoDB");
