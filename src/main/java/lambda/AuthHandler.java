@@ -121,8 +121,8 @@ public class AuthHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
 
             Map<String, Object> successResponse = new HashMap<>();
             successResponse.put("status", "success");
-            successResponse.put("code", 200);
-            successResponse.put("message", "User created successfully");
+            successResponse.put("responseCode", 200);
+            successResponse.put("responseDode", "User created successfully");
             return createResponse(200, gson.toJson(successResponse));
         } catch (Exception e) {
             return createErrorResponse(500, "Error creating user: " + e.getMessage());
@@ -161,7 +161,7 @@ public class AuthHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
 
                     Map<String, Object> successResponse = new HashMap<>();
                     successResponse.put("status", "success");
-                    successResponse.put("code", 200);
+                    successResponse.put("responseCode", 200);
                     successResponse.put("token", token);
                     return createResponse(200, gson.toJson(successResponse));
                 } else {
@@ -217,8 +217,8 @@ public class AuthHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
 
             Map<String, Object> successResponse = new HashMap<>();
             successResponse.put("status", "success");
-            successResponse.put("code", 200);
-            successResponse.put("message", "Image uploaded successfully");
+            successResponse.put("responseCode", 200);
+            successResponse.put("responseDode", "Image uploaded successfully");
             return createResponse(200, gson.toJson(successResponse));
         } catch (Exception e) {
             return createErrorResponse(500, "Error uploading image: " + e.getMessage());
@@ -268,7 +268,7 @@ public class AuthHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
                 }
 
                 apiResponse.put("status", "success");
-                apiResponse.put("code", 200);
+                apiResponse.put("responseCode", 200);
                 apiResponse.put("data", userData);
 
                 return createResponse(200, gson.toJson(apiResponse));
