@@ -181,29 +181,42 @@ public class AuthHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
             GetItemResponse response = dynamoDb.getItem(getItemRequest);
 
             if (response.hasItem()) {
-                Map<String, String> userDetails = new HashMap<>();
-                userDetails.put("email", response.item().get("email").s());
-                userDetails.put("name", response.item().getOrDefault("name",
+                // Create a structured response
+                Map<String, Object> apiResponse = new HashMap<>();
+                Map<String, Object> userData = new HashMap<>();
+
+                // Populate user data
+                userData.put("email", response.item().get("email").s());
+                userData.put("name", response.item().getOrDefault("name",
                         AttributeValue.builder().s("").build()).s());
-                userDetails.put("profileImage", response.item().getOrDefault("profileImage",
+                userData.put("profileImage", response.item().getOrDefault("profileImage",
                         AttributeValue.builder().s("").build()).s());
 
-                responseBody.put("responseCode", "200");
-                responseBody.put("responseDesc", "Success");
-                responseBody.put("data", gson.toJson(userDetails));
-                return createResponse(200, gson.toJson(responseBody));
+                // Build the final response
+                apiResponse.put("status", "success");
+                apiResponse.put("code", 200);
+                apiResponse.put("data", userData);
+
+                return createResponse(200, gson.toJson(apiResponse));
             } else {
-                responseBody.put("responseCode", "404");
-                responseBody.put("responseDesc", "User not found");
-                return createResponse(404, gson.toJson(responseBody));
+                Map<String, Object> errorResponse = new HashMap<>();
+                errorResponse.put("status", "error");
+                errorResponse.put("code", 404);
+                errorResponse.put("message", "User not found");
+
+                return createResponse(404, gson.toJson(errorResponse));
             }
 
         } catch (Exception e) {
             System.out.println("Error in handleGetUserDetails: " + e.getMessage());
             e.printStackTrace();
-            responseBody.put("responseCode", "500");
-            responseBody.put("responseDesc", "Error fetching user details: " + e.getMessage());
-            return createResponse(500, gson.toJson(responseBody));
+
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", "error");
+            errorResponse.put("code", 500);
+            errorResponse.put("message", "Error fetching user details: " + e.getMessage());
+
+            return createResponse(500, gson.toJson(errorResponse));
         }
     }
 
