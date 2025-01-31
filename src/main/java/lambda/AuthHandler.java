@@ -147,15 +147,26 @@ public class AuthHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
 
     private APIGatewayProxyResponseEvent handleGetUserDetails(APIGatewayProxyRequestEvent input) {
         try {
-            // Verify JWT token
-            String token = input.getHeaders().get("Authorization");
-            if (token == null || !token.startsWith("Bearer ")) {
+            // Get authorization header
+            Map<String, String> headers = input.getHeaders();
+            if (headers == null || !headers.containsKey("Authorization")) {
                 responseBody.put("responseCode", "401");
-                responseBody.put("responseDesc", "Missing or invalid authorization token");
+                responseBody.put("responseDesc", "Missing authorization header");
                 return createResponse(401, gson.toJson(responseBody));
             }
 
-            token = token.replace("Bearer ", "");
+            String authHeader = headers.get("Authorization");
+            System.out.println("Auth header received: " + authHeader); // Debug log
+
+            // Verify the Bearer token format
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                responseBody.put("responseCode", "401");
+                responseBody.put("responseDesc", "Invalid authorization format. Must be 'Bearer <token>'");
+                return createResponse(401, gson.toJson(responseBody));
+            }
+
+            // Extract and verify the token
+            String token = authHeader.substring(7); // Remove "Bearer " prefix
             String email = JwtUtil.verifyToken(token);
 
             // Get user from DynamoDB
@@ -188,11 +199,14 @@ public class AuthHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
             }
 
         } catch (Exception e) {
+            System.out.println("Error in handleGetUserDetails: " + e.getMessage());
+            e.printStackTrace();
             responseBody.put("responseCode", "500");
             responseBody.put("responseDesc", "Error fetching user details: " + e.getMessage());
             return createResponse(500, gson.toJson(responseBody));
         }
     }
+
 
     // In your AuthHandler class, update the handleImageUpload method:
     private APIGatewayProxyResponseEvent handleImageUpload(APIGatewayProxyRequestEvent input) {
@@ -256,6 +270,9 @@ public class AuthHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
         Map<String, String> headers = new HashMap<>();
         headers.put("Content-Type", "application/json");
         headers.put("Access-Control-Allow-Origin", "*");
+        // Add CORS headers
+        headers.put("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+        headers.put("Access-Control-Allow-Headers", "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token");
         response.setHeaders(headers);
 
         return response;
