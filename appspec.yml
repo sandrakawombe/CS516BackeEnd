@@ -3,7 +3,7 @@ Resources:
   - LambdaFunction:
       Type: AWS::Lambda::Function
       Properties:
-        Name: auth-backend
+        Name: test-lambda
         Alias: auth-backend-aly
         CurrentVersion: 1
         TargetVersion: 1
