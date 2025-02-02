@@ -152,6 +152,8 @@ public class AuthHandler implements RequestHandler<APIGatewayProxyRequestEvent, 
 
             GetItemResponse response = dynamoDb.getItem(getItemRequest);
 
+            System.out.println("Testing deployment=======");
+
             if (response.hasItem()) {
                 String storedHash = response.item().get("password").s();
                 if (BCrypt.checkpw(request.getPassword(), storedHash)) {
