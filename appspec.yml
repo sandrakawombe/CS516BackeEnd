@@ -6,5 +6,5 @@ Resources:
       Properties:
         Name: auth-app-auth-function
         Alias: auth-backend-aly
-        CurrentVersion: 1
-        TargetVersion: 1
+        CurrentVersion: 9
+        TargetVersion: 10
