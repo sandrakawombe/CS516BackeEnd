@@ -7,4 +7,4 @@ Resources:
         Name: auth-app-auth-function
         Alias: auth-backend-aly
         CurrentVersion: 9
-        TargetVersion: 10
+        TargetVersion: 9
