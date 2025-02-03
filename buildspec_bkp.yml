@@ -2,8 +2,6 @@ version: 0.2
 
 phases:
   install:
-    runtime-versions:
-      java: corretto17  # Ensures Java 17 (Amazon Corretto 17) is used
     commands:
       - echo Installing dependencies...
       - mvn clean install
@@ -16,7 +14,9 @@ phases:
   post_build:
     commands:
       - echo Updating Lambda function code...
-      - aws lambda update-function-code --function-name auth-backend --zip-file fileb://target/auth-backend-1.0.jar
+      - aws lambda update-function-code
+        --function-name auth-backend
+        --zip-file fileb://target/auth-backend-1.0.jar
 
 artifacts:
   files:
