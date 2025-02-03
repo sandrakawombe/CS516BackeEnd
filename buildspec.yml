@@ -16,7 +16,7 @@ phases:
   post_build:
     commands:
       - echo Updating Lambda function code...
-      - aws lambda update-function-code --function-name auth-backend --zip-file fileb://target/auth-backend-1.0.jar
+      - aws lambda update-function-code --function-name auth-app-auth-function --zip-file fileb://target/auth-backend-1.0.jar
 
 artifacts:
   files:
