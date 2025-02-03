@@ -1,0 +1,20 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      java: corretto17  # Ensures Java 17 (Amazon Corretto 17) is used
+    commands:
+      - echo Installing dependencies...
+      - mvn clean install
+
+  build:
+    commands:
+      - echo Building the Lambda JAR...
+      - mvn clean package
+
+artifacts:
+  files:
+    - target/auth-backend-1.0.jar
+    - appspec.yml
+  discard-paths: yes
